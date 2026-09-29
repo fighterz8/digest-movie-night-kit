@@ -7,6 +7,8 @@ From the Mr Digest video.
 ## Download
 Click the green **Code** button above, then **Download ZIP**. Unzip it somewhere with plenty of space (not inside OneDrive or iCloud), then follow [START-HERE.txt](START-HERE.txt). You'll need [Docker Desktop](https://www.docker.com/products/docker-desktop/), which is free for personal use.
 
+**On Windows, turn on WSL before installing Docker Desktop:** run `wsl --install --no-distribution` in PowerShell as administrator, then restart. Without it, Docker Desktop's default install shows "Virtualization support not detected" even on PCs where virtualization is fine.
+
 ## What's inside
 | App | Job | Where |
 |---|---|---|
@@ -31,7 +33,8 @@ Click the green **Code** button above, then **Download ZIP**. Unzip it somewhere
 - Can't find a recent movie? That's by design: the kit only searches public-domain films.
 
 ## Troubleshooting
-- **"Docker Desktop isn't running":** open Docker Desktop and wait until it says it's running.
+- **"Docker Desktop isn't running":** open Docker Desktop and wait until it says "Engine running".
+- **Docker Desktop says "Virtualization support not detected" (Windows):** install WSL first (see Download above), restart, and open Docker Desktop again.
 - **Port 8096 or 7878 is already in use:** another app is using it. Stop that app, or change the left-hand number under `ports:` in `docker-compose.yml`.
 - **The TV can't connect:** use the address `start` showed you, on the same Wi-Fi. On Windows, allow Docker through the firewall if asked.
 - **Setup hit a problem:** `start` prints the reason. Running `start` again is safe.

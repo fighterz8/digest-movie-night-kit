@@ -150,6 +150,11 @@ def wire_jellyfin(user, password):
     if not any(k.get("AppName") == JF_KEY_NAME for k in keys):
         ja.call("/Auth/Keys?app=" + urllib.parse.quote(JF_KEY_NAME), method="POST")
         keys = ja.call("/Auth/Keys")["Items"]
+    config = ja.call("/System/Configuration")
+    if not config.get("ServerName"):  # unnamed, TV apps would show the container's random ID
+        config["ServerName"] = "Movie Night"
+        ja.call("/System/Configuration", body=config)
+        say("Jellyfin: server named 'Movie Night'")
     return next(k["AccessToken"] for k in keys if k.get("AppName") == JF_KEY_NAME)
 
 

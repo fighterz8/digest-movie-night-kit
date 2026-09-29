@@ -2,8 +2,13 @@ DIGEST MOVIE NIGHT KIT
 Your own Netflix of free, public-domain movies.
 
 SET IT UP (about 15 minutes)
+0. Windows only: Docker Desktop needs a Windows feature called WSL. Open the Start menu,
+   type PowerShell, right-click Windows PowerShell and choose "Run as administrator", then type
+       wsl --install --no-distribution
+   and press Enter. When it finishes, restart your PC. (Skip this on a Mac or Linux.)
 1. Install Docker Desktop (free for personal use): https://www.docker.com/products/docker-desktop/
-   Open it once and wait until it says it's running. You can skip the sign-in.
+   Open it once and wait until it says "Engine running". You can skip the sign-in.
+   If it says "Virtualization support not detected" on Windows, do step 0 first.
 2. Put this folder somewhere with plenty of free space. Not inside OneDrive or iCloud,
    or your movies will try to upload.
 3. Open settings.txt, pick a password, and save it.
