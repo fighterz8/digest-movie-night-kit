@@ -1,0 +1,5 @@
+# Your movies and downloads stay on your computer; only the note in media/movies ships with the kit.
+/media/*
+!/media/movies/
+/media/movies/*
+!/media/movies/README.txt

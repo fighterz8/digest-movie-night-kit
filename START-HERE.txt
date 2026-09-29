@@ -1,0 +1,33 @@
+DIGEST MOVIE NIGHT KIT
+Your own Netflix of free, public-domain movies.
+
+SET IT UP (about 15 minutes)
+1. Install Docker Desktop (free for personal use): https://www.docker.com/products/docker-desktop/
+   Open it once and wait until it says it's running. You can skip the sign-in.
+2. Put this folder somewhere with plenty of free space. Not inside OneDrive or iCloud,
+   or your movies will try to upload.
+3. Open settings.txt, pick a password, and save it.
+4. Double-click start:
+     Windows: start.bat
+     Mac:     start.command  (the first time, right-click it and choose Open)
+     Linux:   run ./start.sh
+   The first start takes a few minutes. When it says READY, two pages open in your browser.
+   If Windows asks whether Docker may use your network, choose Allow (your TV needs it).
+
+ADD A MOVIE
+In Radarr: click Add New, type the title, pick the right YEAR (remakes aren't free),
+make sure "Start search" is ticked, and click Add Movie. That's it.
+
+WATCH
+On this computer: Jellyfin opens in your browser.
+On your TV or phone: install the free Jellyfin app, type the address start showed you,
+and sign in with your password.
+
+EVERYDAY
+Your movies are in media\movies.
+To stop everything, double-click stop. To bring it back, double-click start.
+
+IS THIS LEGAL?
+This kit only searches the Internet Archive's feature film collection, and only films
+marked public domain. Public domain rules depend on your country; these films are public
+domain in the US. Downloading movies you don't have the rights to is illegal in most places.

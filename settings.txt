@@ -1,0 +1,8 @@
+# Digest Movie Night Kit settings. Change the password, save this file, then run start.
+# These are used the first time the kit starts. After that, change them inside Jellyfin and Radarr.
+
+# The password you'll use to sign in to Jellyfin (on your TV) and Radarr. Avoid spaces and the # sign.
+PASSWORD=change-me
+
+# Your name on Jellyfin's sign-in screen.
+USERNAME=admin

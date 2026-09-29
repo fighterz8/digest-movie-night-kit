@@ -1,0 +1,4 @@
+# Windows scripts keep their CRLF line endings byte for byte; macOS and Linux scripts must use LF.
+*.bat -text
+*.sh text eol=lf
+*.command text eol=lf

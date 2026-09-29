@@ -1,0 +1,86 @@
+# Digest Movie Night Kit: your own Netflix of public-domain films.
+# Start it with start.bat (Windows), start.command (Mac) or start.sh (Linux). Your settings are in settings.txt.
+name: movie-night
+
+services:
+  # Runs first: gives qBittorrent an internal password and copies in the kit's helper and search file.
+  prep:
+    image: python:3.13.15-alpine3.23
+    command: ["python3", "/kit/setup.py", "prep"]
+    volumes:
+      - ./kit:/kit:ro
+      - qbittorrent-config:/qbt-config
+      - jackett-config:/jackett-config
+    restart: "no"
+
+  # Your Netflix. TVs and phones on your Wi-Fi connect to port 8096.
+  jellyfin:
+    image: jellyfin/jellyfin:12.1
+    volumes:
+      - jellyfin-config:/config
+      - jellyfin-cache:/cache
+      - ./media/movies:/data/movies:ro
+    ports:
+      - "8096:8096"
+    restart: unless-stopped
+
+  # The delivery truck. Only the other apps can reach it.
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:5.2.4
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - WEBUI_PORT=8080
+    volumes:
+      - qbittorrent-config:/config
+      - ./media:/data
+    depends_on:
+      prep:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # Searches the Internet Archive's public-domain shelf. Only the other apps can reach it.
+  jackett:
+    image: lscr.io/linuxserver/jackett:0.24.2713
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+    volumes:
+      - jackett-config:/config
+    depends_on:
+      prep:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # The robot with your wishlist. Only this computer can open it (port 7878).
+  radarr:
+    image: lscr.io/linuxserver/radarr:version-6.4.4.10685
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+    volumes:
+      - radarr-config:/config
+      - ./media:/data
+    ports:
+      - "127.0.0.1:7878:7878"
+    restart: unless-stopped
+
+  # Connects everything, then exits. Safe to run again: it only adds what's missing.
+  setup:
+    image: python:3.13.15-alpine3.23
+    command: ["python3", "/kit/setup.py", "wire"]
+    env_file: settings.txt
+    volumes:
+      - ./kit:/kit:ro
+      - qbittorrent-config:/qbt-config:ro
+      - jackett-config:/jackett-config:ro
+      - radarr-config:/radarr-config:ro
+    depends_on: [jellyfin, qbittorrent, jackett, radarr]
+    restart: "no"
+
+volumes:
+  jellyfin-config:
+  jellyfin-cache:
+  qbittorrent-config:
+  jackett-config:
+  radarr-config:

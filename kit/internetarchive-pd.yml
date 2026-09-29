@@ -1,0 +1,88 @@
+---
+# Digest Movie Night Kit: a Jackett search for public-domain films on the Internet Archive.
+# Adapted from Jackett's internetarchive.yml (https://github.com/Jackett/Jackett, src/Jackett.Common/Definitions/).
+# Like the original, this file is licensed under the GNU GPL v2.0: see LICENSES/GPL-2.0.txt.
+# Four changes from the original:
+#   - searches only the Archive's Feature Films collection,
+#   - only items whose license is marked public domain,
+#   - adds the year to every title (so Radarr can tell a 1968 original from a 1990 remake),
+#   - hands out .torrent files by default (they include the Archive's own servers as a source; magnets don't).
+id: internetarchive-pd
+name: Internet Archive (Public Domain films)
+description: "Public-domain feature films from the Internet Archive's Feature Films collection"
+language: en-US
+type: public
+encoding: UTF-8
+links:
+  - https://archive.org/
+
+caps:
+  categorymappings:
+    - {id: movies, cat: Movies, desc: movies}
+
+  modes:
+    search: [q]
+    movie-search: [q]
+
+settings:
+  - name: noMagnet
+    type: checkbox
+    label: Download using .torrent only. No Magnets.
+    default: true
+
+search:
+  paths:
+    - path: advancedsearch.php
+      response:
+        type: json
+
+  inputs:
+    q: "{{ if .Keywords }}title:({{ .Keywords }}) AND {{ else }}{{ end }}collection:(feature_films) AND licenseurl:(*publicdomain*) AND format:(\"Archive BitTorrent\") AND mediatype:(movies)"
+    fl[]: "identifier,title,year,mediatype,item_size,downloads,btih,publicdate"
+    sort: "{{ if .Keywords }}-downloads{{ else }}-publicdate{{ end }}"
+    rows: 100
+    output: json
+
+  rows:
+    selector: response.docs
+    count:
+      selector: response.numFound
+
+  fields:
+    _id:
+      selector: identifier
+    category:
+      text: movies
+    _title:
+      selector: title
+      optional: true
+      default: "Missing title for {{ .Result._id }}"
+    _year:
+      selector: year
+      optional: true
+    title:
+      text: "{{ .Result._title }}{{ if .Result._year }} ({{ .Result._year }}){{ else }}{{ end }}"
+    details:
+      text: "details/{{ .Result._id }}"
+    download:
+      text: "download/{{ .Result._id }}/{{ .Result._id }}_archive.torrent"
+    _btih:
+      selector: btih
+      optional: true
+    infohash:
+      text: "{{ if .Config.noMagnet }}{{ else }}{{ .Result._btih }}{{ end }}"
+    date:
+      selector: publicdate
+    size:
+      selector: item_size
+    grabs:
+      selector: downloads
+      optional: true
+    seeders:
+      text: 1
+    leechers:
+      text: 1
+    downloadvolumefactor:
+      text: 0
+    uploadvolumefactor:
+      text: 1
