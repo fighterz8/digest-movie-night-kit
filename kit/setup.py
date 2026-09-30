@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Digest Movie Night Kit setup.
 
-prep  runs before qBittorrent and Jackett start: gives qBittorrent an internal password (you never need it) and
-      copies in the kit's one-copy helper and its public-domain search file.
-wire  runs after everything starts: connects the apps to each other and applies the kit's rules.
-      Safe to run again: it only adds what's missing and re-applies the rules.
+prep     runs before qBittorrent and Jackett start: gives qBittorrent an internal password (you never need it)
+         and copies in the kit's one-copy helper and its public-domain search file.
+wire     runs after everything starts: connects the apps to each other and applies the kit's rules.
+         Safe to run again: it only adds what's missing and re-applies the rules.
+tonight  the nightly shopping trip (tonight.bat / tonight.sh run it): checks the Movie Night list if it's switched
+         on, then searches for every movie on the wishlist that isn't downloaded yet.
 """
 import base64, hashlib, http.cookiejar, json, os, re, secrets, shutil, sys, time
 import urllib.error, urllib.parse, urllib.request
@@ -16,6 +18,8 @@ JACKETT_DEF = "/jackett-config/cardigann/definitions/internetarchive-pd.yml"
 JF_AUTH = 'MediaBrowser Client="Movie Night Kit", Device="setup", DeviceId="movie-night-kit-setup", Version="1.0"'
 JF_KEY_NAME = "Radarr (Movie Night Kit)"
 INDEXER_NAME = "Internet Archive (public domain)"
+LIST_NAME = "Digest Movie Night list"
+LIST_URL = "https://raw.githubusercontent.com/fighterz8/digest-movie-night-kit/main/movies.json"
 
 
 def say(msg):
@@ -95,6 +99,21 @@ def settings():
     return user, password
 
 
+def list_setting():
+    """MOVIE_LIST=on in settings.txt follows the kit's list of public-domain films (MOVIE_LIST_URL points at a
+    different list, for testing or a fork)."""
+    on = (os.environ.get("MOVIE_LIST") or "off").strip().strip('"').lower() in ("on", "yes", "true", "1")
+    return on, (os.environ.get("MOVIE_LIST_URL") or LIST_URL).strip().strip('"')
+
+
+def radarr_api(minutes=10):
+    def ready():
+        key = re.search(r"<ApiKey>(\w+)</ApiKey>", open("/radarr-config/config.xml").read()).group(1)
+        Http("http://radarr:7878/api/v3", {"X-Api-Key": key}).call("/system/status")
+        return key
+    return Http("http://radarr:7878/api/v3", {"X-Api-Key": wait_for("Radarr", ready, minutes)})
+
+
 def wire_qbittorrent():
     secret = open(QBT_SECRET).read().strip()
     qbt = Http("http://qbittorrent:8080/api/v2", {"Referer": "http://qbittorrent:8080"})
@@ -159,11 +178,7 @@ def wire_jellyfin(user, password):
 
 
 def wire_radarr(user, password, qbt_secret, jackett_key, jellyfin_key):
-    def ready():
-        key = re.search(r"<ApiKey>(\w+)</ApiKey>", open("/radarr-config/config.xml").read()).group(1)
-        Http("http://radarr:7878/api/v3", {"X-Api-Key": key}).call("/system/status")
-        return key
-    r = Http("http://radarr:7878/api/v3", {"X-Api-Key": wait_for("Radarr", ready)})
+    r = radarr_api()
 
     host = r.call("/config/host")
     if host.get("authenticationMethod", "none") == "none":
@@ -195,14 +210,18 @@ def wire_radarr(user, password, qbt_secret, jackett_key, jellyfin_key):
                  priority=25)
         r.call("/indexer", body=s)  # Radarr runs a test search before saving
 
-    cf = next((c for c in r.call("/customformat") if c["name"] == "Colorized"), None)
-    if not cf:
-        cf = r.call("/customformat", body={"name": "Colorized", "includeCustomFormatWhenRenaming": False,
-                                            "specifications": [{"name": "colorized in the title",
-                                                                "implementation": "ReleaseTitleSpecification",
-                                                                "negate": False, "required": True,
-                                                                "fields": [{"name": "value",
-                                                                            "value": r"\bcolou?ri[sz]ed\b"}]}]})
+    # Originals only: colorized versions and commercial disc rips (which can carry a restoration or a newer score
+    # that is still copyrighted) are rejected.
+    rules = {"Colorized": r"\bcolou?ri[sz]ed\b",
+             "Commercial disc rip": r"\b(blu[ ._-]?ray|remux|bdrip|brrip|web[ ._-]?dl|webrip)\b"}
+    formats = {c["name"]: c for c in r.call("/customformat")}
+    for name, regex in rules.items():
+        if name not in formats:
+            formats[name] = r.call("/customformat", body={
+                "name": name, "includeCustomFormatWhenRenaming": False,
+                "specifications": [{"name": name.lower() + " in the title", "implementation": "ReleaseTitleSpecification",
+                                    "negate": False, "required": True, "fields": [{"name": "value", "value": regex}]}]})
+    reject = {formats[name]["id"] for name in rules}
     for p in r.call("/qualityprofile"):
         if p["name"] != "Any":
             continue
@@ -210,8 +229,8 @@ def wire_radarr(user, password, qbt_secret, jackett_key, jellyfin_key):
             if (item.get("quality") or {}).get("name") == "Unknown":
                 item["allowed"] = True  # Archive uploads carry no quality labels
         for fi in p["formatItems"]:
-            if fi["format"] == cf["id"]:
-                fi["score"] = -10000  # originals only
+            if fi["format"] in reject:
+                fi["score"] = -10000
         r.call(f"/qualityprofile/{p['id']}", method="PUT", body=p)
 
     naming = r.call("/config/naming")
@@ -227,6 +246,64 @@ def wire_radarr(user, password, qbt_secret, jackett_key, jellyfin_key):
                 s[event] = True
         r.call("/notification", body=s)  # Radarr checks it can reach Jellyfin before saving
     say("Radarr: connected to qBittorrent, the public-domain search and Jellyfin; rules applied")
+    wire_movie_list(r)
+
+
+def wire_movie_list(r):
+    """The list decides what, the schedule decides when: films on the list go on the wishlist, and they download
+    when tonight runs (or when you click Search in Radarr)."""
+    on, url = list_setting()
+    existing = next((l for l in r.call("/importlist") if l["name"] == LIST_NAME), None)
+    if not on:
+        if existing and existing["enabled"]:
+            existing.update(enabled=False, enableAuto=False)
+            r.call(f"/importlist/{existing['id']}", method="PUT", body=existing)
+            say("Radarr: Movie Night list switched off (the movies it added stay)")
+        return
+    profile = next(p["id"] for p in r.call("/qualityprofile") if p["name"] == "Any")
+    s = existing or next(x for x in r.call("/importlist/schema") if x["implementation"] == "RadarrListImport")
+    fill(s, url=url)
+    s.update(name=LIST_NAME, enabled=True, enableAuto=True, searchOnAdd=False, monitor="movieOnly",
+             rootFolderPath="/data/movies", qualityProfileId=profile, minimumAvailability="released")
+    if existing:
+        r.call(f"/importlist/{existing['id']}", method="PUT", body=s)
+    else:
+        r.call("/importlist", body=s)  # Radarr fetches the list before saving
+    say("Radarr: following the Movie Night list (its films download when tonight runs)")
+
+
+def run_command(r, name, minutes=10, **args):
+    cmd = r.call("/command", body={"name": name, **args})
+    deadline = time.time() + minutes * 60
+    while time.time() < deadline:
+        state = r.call(f"/command/{cmd['id']}")
+        if state.get("status") in ("completed", "failed", "aborted", "cancelled", "orphaned"):
+            return state
+        time.sleep(2)
+    return {"status": "still running"}
+
+
+def tonight():
+    try:
+        r = radarr_api(minutes=2)
+    except SystemExit:
+        raise SystemExit("Radarr isn't answering. Is the kit running? Double-click start, then try again.")
+    on, _ = list_setting()
+    movie_list = next((l for l in r.call("/importlist") if l["name"] == LIST_NAME and l["enabled"]), None)
+    if on and movie_list:
+        # Naming the list makes Radarr read it now; a plain sync skips lists read in the last 12 hours.
+        done = run_command(r, "ImportListSync", definitionId=movie_list["id"])
+        say(f"Checked the Movie Night list: {done.get('message') or done.get('status')}")
+    elif on:
+        say("MOVIE_LIST is on, but Radarr isn't following the list yet: run start once to set it up.")
+    missing = [m for m in r.call("/movie") if m.get("monitored") and not m.get("hasFile") and m.get("isAvailable")]
+    if not missing:
+        say("Nothing on your wishlist is missing, so there's nothing to download tonight.")
+        return
+    names = [f"{m['title']} ({m['year']})" for m in missing]
+    say(f"Tonight's shopping list ({len(names)}): " + ", ".join(names[:15]) + (", ..." if len(names) > 15 else ""))
+    r.call("/command", body={"name": "MissingMoviesSearch"})
+    say("The robot is searching the Archive's public-domain shelf. Downloads appear under Activity in Radarr.")
 
 
 def wire():
@@ -240,6 +317,6 @@ def wire():
 
 if __name__ == "__main__":
     try:
-        {"prep": prep, "wire": wire}[sys.argv[1]]()
+        {"prep": prep, "wire": wire, "tonight": tonight}[sys.argv[1]]()
     except urllib.error.HTTPError as e:
         raise SystemExit(f"{e.url} answered {e.code}: {e.read().decode(errors='replace')[:400]}")

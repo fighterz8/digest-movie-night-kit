@@ -3,3 +3,5 @@
 !/media/movies/
 /media/movies/*
 !/media/movies/README.txt
+# Written by scheduled runs of tonight
+tonight-log.txt

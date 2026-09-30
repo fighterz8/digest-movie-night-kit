@@ -16,12 +16,31 @@ SET IT UP (about 15 minutes)
      Windows: start.bat
      Mac:     start.command  (the first time, right-click it and choose Open)
      Linux:   run ./start.sh
+   If Windows says it can't verify the publisher, click Run. The start file is plain text: open it in
+   Notepad to read exactly what it does.
    The first start takes a few minutes. When it says READY, two pages open in your browser.
    If Windows asks whether Docker may use your network, choose Allow (your TV needs it).
 
 ADD A MOVIE
 In Radarr: click Add New, type the title, pick the right YEAR (remakes aren't free),
 make sure "Start search" is ticked, and click Add Movie. That's it.
+
+MAKE IT AUTOMATIC (optional)
+1. In settings.txt, change MOVIE_LIST=off to MOVIE_LIST=on, save, and double-click start again.
+   Radarr now follows the Digest Movie Night list: public-domain films picked for the channel.
+   New films on the list land on your wishlist by themselves.
+2. The list decides what, tonight decides when. Double-click tonight to download everything
+   on your wishlist that's missing, or put it on a schedule so it runs every night:
+
+   Windows: open the Start menu, type Task Scheduler and open it. Click Create Basic Task, name it
+     Movie Night, choose Daily, pick 1:00 AM, choose Start a program, click Browse and pick tonight.bat
+     in this folder, type scheduled in "Add arguments", and click Finish.
+   Mac or Linux: open Terminal in this folder and paste this line (it adds a nightly 1 AM run to cron):
+     (crontab -l 2>/dev/null; echo "0 1 * * * /bin/bash \"$PWD/tonight.sh\" scheduled") | crontab -
+
+   Each scheduled run is written to tonight-log.txt in this folder. The computer has to be on (not
+   asleep) with Docker Desktop running: in Docker Desktop's Settings, under General, turn on
+   starting Docker Desktop when you sign in.
 
 WATCH
 On this computer: Jellyfin opens in your browser.
@@ -34,5 +53,5 @@ To stop everything, double-click stop. To bring it back, double-click start.
 
 IS THIS LEGAL?
 This kit only searches the Internet Archive's feature film collection, and only films
-marked public domain. Public domain rules depend on your country; these films are public
+marked public domain. The Movie Night list only includes films checked as public domain in the US. Public domain rules depend on your country; these films are public
 domain in the US. Downloading movies you don't have the rights to is illegal in most places.

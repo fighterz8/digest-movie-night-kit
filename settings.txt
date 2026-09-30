@@ -6,3 +6,8 @@ PASSWORD=change-me
 
 # Your name on Jellyfin's sign-in screen.
 USERNAME=admin
+
+# Automatic movies. "on" follows the Digest Movie Night list: public-domain films picked for the channel, added
+# to your wishlist by themselves. They download when "tonight" runs (schedule it to run every night, see the
+# README). "off" means you pick every movie yourself in Radarr. After changing it, run start again.
+MOVIE_LIST=off

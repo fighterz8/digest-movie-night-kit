@@ -2,9 +2,10 @@
 # Digest Movie Night Kit: a Jackett search for public-domain films on the Internet Archive.
 # Adapted from Jackett's internetarchive.yml (https://github.com/Jackett/Jackett, src/Jackett.Common/Definitions/).
 # Like the original, this file is licensed under the GNU GPL v2.0: see LICENSES/GPL-2.0.txt.
-# Four changes from the original:
+# Five changes from the original:
 #   - searches only the Archive's Feature Films collection,
 #   - only items whose license is marked public domain,
+#   - skips uploads of commercial Blu-ray discs (they can carry a restoration or score that is still copyrighted),
 #   - adds the year to every title (so Radarr can tell a 1968 original from a 1990 remake),
 #   - hands out .torrent files by default (they include the Archive's own servers as a source; magnets don't).
 id: internetarchive-pd
@@ -37,7 +38,7 @@ search:
         type: json
 
   inputs:
-    q: "{{ if .Keywords }}title:({{ .Keywords }}) AND {{ else }}{{ end }}collection:(feature_films) AND licenseurl:(*publicdomain*) AND format:(\"Archive BitTorrent\") AND mediatype:(movies)"
+    q: "{{ if .Keywords }}title:({{ .Keywords }}) AND {{ else }}{{ end }}collection:(feature_films) AND licenseurl:(*publicdomain*) AND format:(\"Archive BitTorrent\") AND mediatype:(movies) AND NOT identifier:(*blu-ray* OR *bluray* OR *remux*)"
     fl[]: "identifier,title,year,mediatype,item_size,downloads,btih,publicdate"
     sort: "{{ if .Keywords }}-downloads{{ else }}-publicdate{{ end }}"
     rows: 100
